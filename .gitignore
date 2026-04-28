@@ -1,0 +1,26 @@
+# Data (too large for GitHub)
+data/raw/
+data/processed/
+
+# Trained model weights (large binary files)
+outputs/models/*.pt
+outputs/models/*.pkl
+
+# Keep the reports and plots
+!outputs/reports/
+!outputs/plots/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+venv/
+.venv/
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
