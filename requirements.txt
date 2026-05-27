@@ -22,6 +22,12 @@ fastparquet>=2023.10
 # Web app (Phase 9 bonus)
 streamlit>=1.30
 
+# TabPFN — transformer pretrained on tabular data
+tabpfn>=0.1.9
+
+# HTML parsing (for Football Manager exports)
+lxml>=4.9
+
 # Notebook support
 jupyter>=1.0
 ipykernel>=6.25

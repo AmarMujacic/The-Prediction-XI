@@ -9,6 +9,7 @@ Full training pipeline:
   4. Optuna hyperparameter search for the MLP
   5. Final training of:
        - Random Forest baseline
+       - TabPFN (transformer pretrained on tabular data)
        - Best MLP (from Optuna)
        - LSTM (sequence model, optional)
   6. Save all model artefacts to outputs/models/
@@ -34,7 +35,7 @@ from sklearn.utils.class_weight import compute_class_weight
 import optuna
 from optuna.samplers import TPESampler
 
-from model import BaselineModel, FootballLSTM, FootballMLP, count_parameters
+from model import BaselineModel, FootballLSTM, FootballMLP, TabPFNModel, count_parameters
 from features import get_feature_columns, normalise
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
@@ -354,7 +355,17 @@ def main(skip_optuna: bool = False, train_lstm_flag: bool = False):
     log.info("Baseline saved.")
 
     # -----------------------------------------------------------------------
-    # 2. MLP — hyperparameter search then final training
+    # 2. TabPFN — transformer pretrained on tabular data
+    # -----------------------------------------------------------------------
+    log.info("=== TRAINING TabPFN ===")
+    tabpfn = TabPFNModel(device="cpu")
+    tabpfn.fit(X_train, y_train)
+    with open(os.path.join(MODELS_DIR, "tabpfn.pkl"), "wb") as f:
+        pickle.dump(tabpfn, f)
+    log.info("TabPFN saved.")
+
+    # -----------------------------------------------------------------------
+    # 3. MLP — hyperparameter search then final training
     # -----------------------------------------------------------------------
     if skip_optuna:
         best_hparams = {

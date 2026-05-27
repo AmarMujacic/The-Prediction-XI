@@ -59,6 +59,14 @@ def _load_mlp(n_features: int) -> FootballMLP:
     return load_mlp(path, n_features, hp["hidden_sizes"], hp["dropout"])
 
 
+def _load_tabpfn():
+    path = os.path.join(MODELS_DIR, "tabpfn.pkl")
+    if not os.path.exists(path):
+        return None
+    with open(path, "rb") as f:
+        return pickle.load(f)
+
+
 def _load_lstm(n_features: int) -> FootballLSTM | None:
     path = os.path.join(MODELS_DIR, "lstm.pt")
     if not os.path.exists(path):
@@ -168,7 +176,15 @@ def run_evaluation():
     mlp_pred  = np.argmax(mlp_proba, axis=1)
     results["mlp"] = evaluate_model("Deep MLP", y_test, mlp_pred, mlp_proba)
 
-    # ---- 4. LSTM (if available) ----
+    # ---- 4. TabPFN (if available) ----
+    tabpfn = _load_tabpfn()
+    if tabpfn is not None:
+        log.info("Evaluating TabPFN…")
+        tabpfn_proba = tabpfn.predict_proba(X_test)
+        tabpfn_pred  = np.argmax(tabpfn_proba, axis=1)
+        results["tabpfn"] = evaluate_model("TabPFN", y_test, tabpfn_pred, tabpfn_proba)
+
+    # ---- 5. LSTM (if available) ----
     lstm = _load_lstm(n_features)
     if lstm is not None:
         log.info("Evaluating LSTM…")

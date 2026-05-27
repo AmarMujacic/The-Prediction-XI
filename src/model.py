@@ -6,6 +6,7 @@ Defines all model architectures used in this project:
   - FootballMLP   : Deep Multi-Layer Perceptron (main deep-learning model)
   - FootballLSTM  : LSTM for sequence-of-form-windows input (optional bonus)
   - BaselineModel : Thin sklearn wrapper (Random Forest / Logistic Regression)
+  - TabPFNModel   : Transformer pretrained on tabular data (TabPFN)
 
 PyTorch is used for deep models; scikit-learn for the baseline.
 """
@@ -177,6 +178,62 @@ class BaselineModel:
 
     def __repr__(self):
         return f"BaselineModel(type={self.model_type})"
+
+
+# ---------------------------------------------------------------------------
+# TabPFN — Transformer pretrained on tabular data
+# ---------------------------------------------------------------------------
+
+class TabPFNModel:
+    """
+    Wrapper around TabPFNClassifier for 3-class match outcome prediction.
+
+    TabPFN is a transformer pretrained on millions of synthetic tabular datasets.
+    It requires NO hyperparameter tuning and often outperforms Random Forest
+    out-of-the-box on small-to-medium tabular tasks.
+
+    Limitation: TabPFN works best with up to 3,000 training samples and
+    100 features. For larger datasets we subsample the training set.
+    """
+
+    MAX_TRAIN_SAMPLES = 3000
+    MAX_FEATURES      = 100
+
+    def __init__(self, device: str = "cpu"):
+        try:
+            from tabpfn import TabPFNClassifier
+        except ImportError:
+            raise ImportError("TabPFN not installed. Run: pip install tabpfn")
+
+        self.clf = TabPFNClassifier(device=device)
+        self.device = device
+        self._fitted = False
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> "TabPFNModel":
+        X_fit, y_fit = self._subsample(X, y)
+        X_fit = self._trim_features(X_fit)
+        self.clf.fit(X_fit, y_fit)
+        self._fitted = True
+        return self
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        return self.clf.predict(self._trim_features(X))
+
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        return self.clf.predict_proba(self._trim_features(X))
+
+    def _subsample(self, X: np.ndarray, y: np.ndarray):
+        if len(X) <= self.MAX_TRAIN_SAMPLES:
+            return X, y
+        rng = np.random.default_rng(42)
+        idx = rng.choice(len(X), self.MAX_TRAIN_SAMPLES, replace=False)
+        return X[idx], y[idx]
+
+    def _trim_features(self, X: np.ndarray) -> np.ndarray:
+        return X[:, : self.MAX_FEATURES]
+
+    def __repr__(self):
+        return f"TabPFNModel(device={self.device})"
 
 
 # ---------------------------------------------------------------------------
