@@ -35,7 +35,8 @@ from sklearn.utils.class_weight import compute_class_weight
 import optuna
 from optuna.samplers import TPESampler
 
-from model import BaselineModel, FootballLSTM, FootballMLP, TabPFNModel, count_parameters
+from model import (BaselineModel, FootballLSTM, FootballMLP, TabPFNModel,
+                   XGBoostModel, LightGBMModel, EnsembleModel, count_parameters)
 from features import get_feature_columns, normalise
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
@@ -400,7 +401,61 @@ def main(skip_optuna: bool = False, train_lstm_flag: bool = False):
         pickle.dump(history, f)
 
     # -----------------------------------------------------------------------
-    # 3. LSTM (optional)
+    # 4. XGBoost
+    # -----------------------------------------------------------------------
+    log.info("=== TRAINING XGBoost ===")
+    xgb_model = XGBoostModel()
+    xgb_model.fit(X_train, y_train)
+    with open(os.path.join(MODELS_DIR, "xgboost.pkl"), "wb") as f:
+        pickle.dump(xgb_model, f)
+    log.info("XGBoost saved.")
+
+    # -----------------------------------------------------------------------
+    # 5. LightGBM
+    # -----------------------------------------------------------------------
+    log.info("=== TRAINING LightGBM ===")
+    lgbm_model = LightGBMModel()
+    lgbm_model.fit(X_train, y_train)
+    with open(os.path.join(MODELS_DIR, "lightgbm.pkl"), "wb") as f:
+        pickle.dump(lgbm_model, f)
+    log.info("LightGBM saved.")
+
+    # -----------------------------------------------------------------------
+    # 6. Ensemble — RF + XGB + LGBM + MLP + TabPFN (weighted by val accuracy)
+    # -----------------------------------------------------------------------
+    log.info("=== BUILDING ENSEMBLE ===")
+
+    # Quick validation accuracies to set weights
+    def _val_acc(model, X, y):
+        preds = np.argmax(model.predict_proba(X), axis=1) \
+                if not hasattr(model, "predict") else model.predict(X)
+        return float(np.mean(preds == y))
+
+    mlp_cpu = mlp.cpu()
+
+    val_accs = {
+        "rf":     _val_acc(baseline,   X_val, y_val),
+        "xgb":    _val_acc(xgb_model,  X_val, y_val),
+        "lgbm":   _val_acc(lgbm_model, X_val, y_val),
+        "tabpfn": _val_acc(tabpfn,     X_val, y_val),
+        "mlp":    float(np.mean(
+            np.argmax(mlp_cpu.predict_proba(
+                torch.from_numpy(X_val)), axis=1) == y_val)),
+    }
+    log.info("Validation accuracies for ensemble weights: %s",
+             {k: f"{v:.4f}" for k, v in val_accs.items()})
+
+    weights = list(val_accs.values())
+    ensemble = EnsembleModel(
+        models=[baseline, xgb_model, lgbm_model, tabpfn, mlp_cpu],
+        weights=weights,
+    )
+    with open(os.path.join(MODELS_DIR, "ensemble.pkl"), "wb") as f:
+        pickle.dump(ensemble, f)
+    log.info("Ensemble saved (weighted by val accuracy).")
+
+    # -----------------------------------------------------------------------
+    # 7. LSTM (optional)
     # -----------------------------------------------------------------------
     if train_lstm_flag:
         log.info("=== TRAINING LSTM ===")

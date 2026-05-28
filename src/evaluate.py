@@ -67,6 +67,30 @@ def _load_tabpfn():
         return pickle.load(f)
 
 
+def _load_xgboost():
+    path = os.path.join(MODELS_DIR, "xgboost.pkl")
+    if not os.path.exists(path):
+        return None
+    with open(path, "rb") as f:
+        return pickle.load(f)
+
+
+def _load_lightgbm():
+    path = os.path.join(MODELS_DIR, "lightgbm.pkl")
+    if not os.path.exists(path):
+        return None
+    with open(path, "rb") as f:
+        return pickle.load(f)
+
+
+def _load_ensemble():
+    path = os.path.join(MODELS_DIR, "ensemble.pkl")
+    if not os.path.exists(path):
+        return None
+    with open(path, "rb") as f:
+        return pickle.load(f)
+
+
 def _load_lstm(n_features: int) -> FootballLSTM | None:
     path = os.path.join(MODELS_DIR, "lstm.pt")
     if not os.path.exists(path):
@@ -184,7 +208,32 @@ def run_evaluation():
         tabpfn_pred  = np.argmax(tabpfn_proba, axis=1)
         results["tabpfn"] = evaluate_model("TabPFN", y_test, tabpfn_pred, tabpfn_proba)
 
-    # ---- 5. LSTM (if available) ----
+    # ---- 5. XGBoost (if available) ----
+    xgb = _load_xgboost()
+    if xgb is not None:
+        log.info("Evaluating XGBoost…")
+        xgb_proba = xgb.predict_proba(X_test)
+        xgb_pred  = np.argmax(xgb_proba, axis=1)
+        results["xgboost"] = evaluate_model("XGBoost", y_test, xgb_pred, xgb_proba)
+
+    # ---- 6. LightGBM (if available) ----
+    lgbm = _load_lightgbm()
+    if lgbm is not None:
+        log.info("Evaluating LightGBM…")
+        lgbm_proba = lgbm.predict_proba(X_test)
+        lgbm_pred  = np.argmax(lgbm_proba, axis=1)
+        results["lightgbm"] = evaluate_model("LightGBM", y_test, lgbm_pred, lgbm_proba)
+
+    # ---- 7. Ensemble (if available) ----
+    ensemble = _load_ensemble()
+    if ensemble is not None:
+        log.info("Evaluating Ensemble…")
+        ens_proba = ensemble.predict_proba(X_test)
+        ens_pred  = np.argmax(ens_proba, axis=1)
+        results["ensemble"] = evaluate_model("Ensemble (RF+XGB+LGBM+MLP+TabPFN)",
+                                             y_test, ens_pred, ens_proba)
+
+    # ---- 8. LSTM (if available) ----
     lstm = _load_lstm(n_features)
     if lstm is not None:
         log.info("Evaluating LSTM…")

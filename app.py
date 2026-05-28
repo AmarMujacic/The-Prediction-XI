@@ -93,6 +93,33 @@ def load_tabpfn():
 
 
 @st.cache_resource
+def load_xgboost():
+    path = os.path.join(MODELS_DIR, "xgboost.pkl")
+    if not os.path.exists(path):
+        return None
+    with open(path, "rb") as f:
+        return pickle.load(f)
+
+
+@st.cache_resource
+def load_lightgbm():
+    path = os.path.join(MODELS_DIR, "lightgbm.pkl")
+    if not os.path.exists(path):
+        return None
+    with open(path, "rb") as f:
+        return pickle.load(f)
+
+
+@st.cache_resource
+def load_ensemble():
+    path = os.path.join(MODELS_DIR, "ensemble.pkl")
+    if not os.path.exists(path):
+        return None
+    with open(path, "rb") as f:
+        return pickle.load(f)
+
+
+@st.cache_resource
 def load_baseline():
     path = os.path.join(MODELS_DIR, "baseline_rf.pkl")
     if not os.path.exists(path):
@@ -426,15 +453,23 @@ def normalise_vec(feat_dict, feat_cols, norm_stats):
     return vec
 
 
-def run_model(model_name, vec, mlp, tabpfn, baseline):
+def run_model(model_name, vec, mlp, tabpfn, baseline,
+              xgb=None, lgbm=None, ensemble=None):
+    x_2d = vec.reshape(1, -1)
     if model_name == "Deep MLP" and mlp is not None:
-        x = torch.from_numpy(vec).unsqueeze(0)
+        t = torch.from_numpy(vec).unsqueeze(0)
         with torch.no_grad():
-            proba = torch.softmax(mlp(x), dim=1).numpy()[0]
+            proba = torch.softmax(mlp(t), dim=1).numpy()[0]
     elif model_name == "TabPFN" and tabpfn is not None:
-        proba = tabpfn.predict_proba(vec.reshape(1, -1))[0]
+        proba = tabpfn.predict_proba(x_2d)[0]
     elif model_name == "Random Forest" and baseline is not None:
-        proba = baseline.predict_proba(vec.reshape(1, -1))[0]
+        proba = baseline.predict_proba(x_2d)[0]
+    elif model_name == "XGBoost" and xgb is not None:
+        proba = xgb.predict_proba(x_2d)[0]
+    elif model_name == "LightGBM" and lgbm is not None:
+        proba = lgbm.predict_proba(x_2d)[0]
+    elif model_name == "Ensemble" and ensemble is not None:
+        proba = ensemble.predict_proba(x_2d)[0]
     else:
         return None
     return proba
@@ -705,7 +740,7 @@ def show_probability_chart(proba, home_team, away_team):
 # Sidebar
 # ---------------------------------------------------------------------------
 
-def render_sidebar(mlp, tabpfn, baseline):
+def render_sidebar(mlp, tabpfn, baseline, xgb=None, lgbm=None, ensemble=None):
     with st.sidebar:
         st.header("The Prediction XI")
         st.markdown("Football match outcome predictor")
@@ -713,7 +748,10 @@ def render_sidebar(mlp, tabpfn, baseline):
 
         # Model selector
         available = []
+        if ensemble is not None: available.append("Ensemble")   # default — best
         if mlp      is not None: available.append("Deep MLP")
+        if xgb      is not None: available.append("XGBoost")
+        if lgbm     is not None: available.append("LightGBM")
         if tabpfn   is not None: available.append("TabPFN")
         if baseline is not None: available.append("Random Forest")
         if not available:
@@ -790,7 +828,10 @@ def tab_historical(mlp, feat_cols, norm_stats, tabpfn, baseline, model_choice):
                 matches, home_team, away_team, date, league_enc, season_yr)
             vec = normalise_vec(feat_dict, feat_cols, norm_stats)
 
-        proba = run_model(model_choice, vec, mlp, tabpfn, baseline)
+        xgb_m    = load_xgboost()
+        lgbm_m   = load_lightgbm()
+        ens_m    = load_ensemble()
+        proba = run_model(model_choice, vec, mlp, tabpfn, baseline, xgb_m, lgbm_m, ens_m)
         if proba is None:
             st.error(f"{model_choice} model not loaded.")
             return
@@ -895,7 +936,10 @@ def tab_football_manager(mlp, feat_cols, norm_stats, tabpfn, baseline, model_cho
             st.error("Could not build features — check team names.")
             return
 
-        proba = run_model(model_choice, vec, mlp, tabpfn, baseline)
+        xgb_m2  = load_xgboost()
+        lgbm_m2 = load_lightgbm()
+        ens_m2  = load_ensemble()
+        proba = run_model(model_choice, vec, mlp, tabpfn, baseline, xgb_m2, lgbm_m2, ens_m2)
         if proba is None:
             st.error(f"{model_choice} model not loaded.")
             return
@@ -925,8 +969,11 @@ def main():
     st.markdown("Football match outcome prediction — Home Win / Draw / Away Win")
 
     mlp, feat_cols, norm_stats, model_err = load_mlp_and_meta()
-    tabpfn  = load_tabpfn()
+    tabpfn   = load_tabpfn()
     baseline = load_baseline()
+    xgb      = load_xgboost()
+    lgbm     = load_lightgbm()
+    ensemble = load_ensemble()
 
     if model_err:
         st.error(model_err)
@@ -935,7 +982,7 @@ def main():
                 "python src/train.py --skip-optuna")
         return
 
-    model_choice = render_sidebar(mlp, tabpfn, baseline)
+    model_choice = render_sidebar(mlp, tabpfn, baseline, xgb, lgbm, ensemble)
 
     tab1, tab2, tab3 = st.tabs(["Historical Data", "Football Manager", "Prediction Log"])
 

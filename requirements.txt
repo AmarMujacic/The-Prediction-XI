@@ -25,6 +25,10 @@ streamlit>=1.30
 # SHAP explainability
 shap>=0.44
 
+# Gradient boosting
+xgboost>=2.0
+lightgbm>=4.1
+
 # TabPFN — transformer pretrained on tabular data
 tabpfn>=0.1.9
 

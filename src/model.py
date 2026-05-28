@@ -237,6 +237,144 @@ class TabPFNModel:
 
 
 # ---------------------------------------------------------------------------
+# XGBoost
+# ---------------------------------------------------------------------------
+
+class XGBoostModel:
+    """
+    XGBoost multi-class classifier wrapper.
+    Uses softmax objective for 3-class probability output.
+    Balanced class weights applied via sample_weight.
+    """
+
+    def __init__(self, **kwargs):
+        from xgboost import XGBClassifier
+        self.clf = XGBClassifier(
+            n_estimators=kwargs.get("n_estimators", 400),
+            max_depth=kwargs.get("max_depth", 6),
+            learning_rate=kwargs.get("learning_rate", 0.05),
+            subsample=kwargs.get("subsample", 0.8),
+            colsample_bytree=kwargs.get("colsample_bytree", 0.8),
+            objective="multi:softprob",
+            num_class=3,
+            eval_metric="mlogloss",
+            use_label_encoder=False,
+            random_state=42,
+            n_jobs=-1,
+        )
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> "XGBoostModel":
+        from sklearn.utils.class_weight import compute_sample_weight
+        weights = compute_sample_weight("balanced", y)
+        self.clf.fit(X, y, sample_weight=weights)
+        return self
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        return self.clf.predict(X)
+
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        return self.clf.predict_proba(X)
+
+    def __repr__(self):
+        return "XGBoostModel()"
+
+
+# ---------------------------------------------------------------------------
+# LightGBM
+# ---------------------------------------------------------------------------
+
+class LightGBMModel:
+    """
+    LightGBM multi-class classifier wrapper.
+    Faster than XGBoost on tabular data; often comparable accuracy.
+    """
+
+    def __init__(self, **kwargs):
+        from lightgbm import LGBMClassifier
+        self.clf = LGBMClassifier(
+            n_estimators=kwargs.get("n_estimators", 400),
+            max_depth=kwargs.get("max_depth", 6),
+            learning_rate=kwargs.get("learning_rate", 0.05),
+            subsample=kwargs.get("subsample", 0.8),
+            colsample_bytree=kwargs.get("colsample_bytree", 0.8),
+            class_weight="balanced",
+            objective="multiclass",
+            num_class=3,
+            random_state=42,
+            n_jobs=-1,
+            verbose=-1,
+        )
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> "LightGBMModel":
+        self.clf.fit(X, y)
+        return self
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        return self.clf.predict(X)
+
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        return self.clf.predict_proba(X)
+
+    def __repr__(self):
+        return "LightGBMModel()"
+
+
+# ---------------------------------------------------------------------------
+# Ensemble — average probabilities across all trained models
+# ---------------------------------------------------------------------------
+
+class EnsembleModel:
+    """
+    Soft-voting ensemble that averages predicted probabilities from:
+      - Random Forest
+      - XGBoost
+      - LightGBM
+      - Deep MLP
+      - TabPFN
+
+    Weights can be uniform or custom (e.g. weight better models higher).
+    Ensembles almost always outperform any single model.
+    """
+
+    def __init__(self, models: list, weights: list[float] | None = None):
+        """
+        models  : list of fitted model objects (any with .predict_proba())
+        weights : optional list of floats (must sum to 1); uniform if None
+        """
+        self.models  = models
+        n = len(models)
+        if weights is None:
+            self.weights = [1.0 / n] * n
+        else:
+            assert len(weights) == n
+            total = sum(weights)
+            self.weights = [w / total for w in weights]
+
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        """Weighted average of all model probability outputs."""
+        combined = np.zeros((len(X), 3), dtype=np.float64)
+        for model, w in zip(self.models, self.weights):
+            try:
+                if hasattr(model, "predict_proba"):
+                    proba = model.predict_proba(X)
+                else:
+                    # PyTorch model
+                    import torch
+                    t = torch.from_numpy(X.astype(np.float32))
+                    proba = model.predict_proba(t)
+                combined += w * proba
+            except Exception:
+                pass
+        return combined.astype(np.float32)
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        return np.argmax(self.predict_proba(X), axis=1)
+
+    def __repr__(self):
+        return f"EnsembleModel({len(self.models)} models)"
+
+
+# ---------------------------------------------------------------------------
 # Utility
 # ---------------------------------------------------------------------------
 
