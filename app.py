@@ -92,7 +92,13 @@ def load_tabpfn():
     if not os.path.exists(path):
         return None
     with open(path, "rb") as f:
-        return pickle.load(f)
+        model = pickle.load(f)
+    # Allow CPU inference regardless of dataset size
+    try:
+        model.clf.ignore_pretraining_limits = True
+    except Exception:
+        pass
+    return model
 
 
 @st.cache_resource
@@ -119,7 +125,15 @@ def load_ensemble():
     if not os.path.exists(path):
         return None
     with open(path, "rb") as f:
-        return pickle.load(f)
+        model = pickle.load(f)
+    # Patch TabPFN inside ensemble if present
+    try:
+        for m in model.models:
+            if hasattr(m, "clf") and hasattr(m.clf, "ignore_pretraining_limits"):
+                m.clf.ignore_pretraining_limits = True
+    except Exception:
+        pass
+    return model
 
 
 @st.cache_resource
