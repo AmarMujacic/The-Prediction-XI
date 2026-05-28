@@ -459,23 +459,48 @@ def normalise_vec(feat_dict, feat_cols, norm_stats):
 def run_model(model_name, vec, mlp, tabpfn, baseline,
               xgb=None, lgbm=None, ensemble=None):
     x_2d = vec.reshape(1, -1)
-    if model_name == "Deep MLP" and mlp is not None:
-        t = torch.from_numpy(vec).unsqueeze(0)
-        with torch.no_grad():
-            proba = torch.softmax(mlp(t), dim=1).numpy()[0]
-    elif model_name == "TabPFN" and tabpfn is not None:
-        proba = tabpfn.predict_proba(x_2d)[0]
-    elif model_name == "Random Forest" and baseline is not None:
-        proba = baseline.predict_proba(x_2d)[0]
-    elif model_name == "XGBoost" and xgb is not None:
-        proba = xgb.predict_proba(x_2d)[0]
-    elif model_name == "LightGBM" and lgbm is not None:
-        proba = lgbm.predict_proba(x_2d)[0]
-    elif model_name == "Ensemble" and ensemble is not None:
-        proba = ensemble.predict_proba(x_2d)[0]
-    else:
+    try:
+        if model_name == "Deep MLP" and mlp is not None:
+            t = torch.from_numpy(vec.astype("float32")).unsqueeze(0)
+            with torch.no_grad():
+                proba = torch.softmax(mlp(t), dim=1).numpy()[0]
+        elif model_name == "TabPFN" and tabpfn is not None:
+            proba = tabpfn.predict_proba(x_2d)[0]
+        elif model_name == "Random Forest" and baseline is not None:
+            proba = baseline.predict_proba(x_2d)[0]
+        elif model_name == "XGBoost" and xgb is not None:
+            proba = xgb.predict_proba(x_2d)[0]
+        elif model_name == "LightGBM" and lgbm is not None:
+            import warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                proba = lgbm.predict_proba(x_2d)[0]
+        elif model_name == "Ensemble" and ensemble is not None:
+            # Build ensemble manually so MLP gets a tensor not numpy
+            models  = ensemble.models
+            weights = ensemble.weights
+            combined = np.zeros(3, dtype=np.float64)
+            for model, w in zip(models, weights):
+                try:
+                    if isinstance(model, torch.nn.Module):
+                        t = torch.from_numpy(x_2d.astype("float32"))
+                        with torch.no_grad():
+                            p = torch.softmax(model(t), dim=1).numpy()[0]
+                    else:
+                        import warnings
+                        with warnings.catch_warnings():
+                            warnings.simplefilter("ignore")
+                            p = model.predict_proba(x_2d)[0]
+                    combined += w * p
+                except Exception:
+                    pass
+            proba = (combined / combined.sum()).astype(np.float32)
+        else:
+            return None
+        return proba
+    except Exception as e:
+        st.error(f"Model error ({model_name}): {e}")
         return None
-    return proba
 
 
 # ---------------------------------------------------------------------------
