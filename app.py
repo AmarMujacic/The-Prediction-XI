@@ -272,6 +272,129 @@ def show_prediction_log():
 
 
 # ---------------------------------------------------------------------------
+# Odds comparison
+# ---------------------------------------------------------------------------
+
+def get_bet365_odds(matches: pd.DataFrame, home_team: str,
+                    away_team: str, date: pd.Timestamp) -> dict | None:
+    """
+    Look up Bet365 odds for the closest matching fixture to the given date.
+    Returns implied probabilities (normalised to sum to 1) or None if not found.
+    """
+    mask = (
+        (matches["home_team"] == home_team) &
+        (matches["away_team"] == away_team) &
+        matches["B365H"].notna() &
+        matches["B365D"].notna() &
+        matches["B365A"].notna()
+    )
+    candidates = matches[mask].copy()
+    if candidates.empty:
+        return None
+
+    # Pick the row closest in date to the requested date
+    candidates["date_diff"] = (candidates["date"] - date).abs()
+    row = candidates.sort_values("date_diff").iloc[0]
+
+    raw_h = float(row["B365H"])
+    raw_d = float(row["B365D"])
+    raw_a = float(row["B365A"])
+
+    # Convert decimal odds → raw implied probs
+    imp_h = 1.0 / raw_h
+    imp_d = 1.0 / raw_d
+    imp_a = 1.0 / raw_a
+    total = imp_h + imp_d + imp_a   # > 1.0 due to bookmaker margin (overround)
+    margin = (total - 1.0) * 100
+
+    return {
+        "odds":     {"Home Win": raw_h, "Draw": raw_d, "Away Win": raw_a},
+        "implied":  {
+            "Home Win": imp_h / total,
+            "Draw":     imp_d / total,
+            "Away Win": imp_a / total,
+        },
+        "margin_pct": margin,
+        "match_date": pd.Timestamp(row["date"]).strftime("%d %b %Y"),
+    }
+
+
+def show_odds_comparison(proba: np.ndarray, odds_data: dict,
+                         home_team: str, away_team: str):
+    """
+    Side-by-side bar chart: our model probabilities vs Bet365 implied probabilities.
+    Highlights outcomes where our model disagrees significantly (potential value).
+    """
+    implied = [
+        odds_data["implied"]["Home Win"],
+        odds_data["implied"]["Draw"],
+        odds_data["implied"]["Away Win"],
+    ]
+    model_proba = [float(p) for p in proba]
+    diffs       = [m - b for m, b in zip(model_proba, implied)]
+
+    st.markdown("#### Our Model vs Bet365 Market")
+    st.caption(
+        f"Odds from closest historical fixture ({odds_data['match_date']}) · "
+        f"Bookmaker margin: {odds_data['margin_pct']:.1f}%"
+    )
+
+    # Grouped bar chart
+    x      = np.arange(3)
+    width  = 0.35
+    fig, ax = plt.subplots(figsize=(7, 4))
+
+    bars1 = ax.bar(x - width/2, [p*100 for p in model_proba],
+                   width, label="Our Model", color=CLASS_COLORS, alpha=0.9, edgecolor="white")
+    bars2 = ax.bar(x + width/2, [p*100 for p in implied],
+                   width, label="Bet365 Implied", color=["#90CAF9","#FFCC80","#EF9A9A"],
+                   edgecolor="white")
+
+    # Value labels on bars
+    for bar in bars1:
+        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.5,
+                f"{bar.get_height():.1f}%", ha="center", va="bottom", fontsize=9, fontweight="bold")
+    for bar in bars2:
+        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.5,
+                f"{bar.get_height():.1f}%", ha="center", va="bottom", fontsize=9)
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(CLASS_NAMES)
+    ax.set_ylabel("Probability (%)")
+    ax.set_title(f"{home_team} vs {away_team}", fontsize=12)
+    ax.legend()
+    ax.set_ylim(0, max(max(model_proba), max(implied)) * 120)
+    plt.tight_layout()
+    st.pyplot(fig)
+    plt.close(fig)
+
+    # Value gap table
+    st.markdown("**Where our model disagrees with the market:**")
+    cols = st.columns(3)
+    for i, (cls, diff, odds_val) in enumerate(zip(
+        CLASS_NAMES, diffs,
+        [odds_data["odds"]["Home Win"],
+         odds_data["odds"]["Draw"],
+         odds_data["odds"]["Away Win"]]
+    )):
+        with cols[i]:
+            arrow = "🟢 Overpriced" if diff > 0.05 else ("🔴 Underpriced" if diff < -0.05 else "🟡 Fair")
+            delta_str = f"{diff*100:+.1f}%"
+            st.metric(
+                label=f"{cls}",
+                value=f"Odds: {odds_val:.2f}",
+                delta=delta_str,
+            )
+            st.caption(arrow)
+
+    st.caption(
+        "🟢 Our model gives higher probability than the market suggests — potential value.\n"
+        "🔴 Market more confident than our model.\n"
+        "🟡 Model and market broadly agree (gap < 5%)."
+    )
+
+
+# ---------------------------------------------------------------------------
 # Feature helpers
 # ---------------------------------------------------------------------------
 
@@ -675,6 +798,13 @@ def tab_historical(mlp, feat_cols, norm_stats, tabpfn, baseline, model_choice):
         show_probability_chart(proba, home_team, away_team)
         save_prediction(home_team, away_team, model_choice, proba, source="Historical")
         st.caption("✅ Prediction saved to log")
+
+        # Odds comparison
+        odds_data = get_bet365_odds(matches, home_team, away_team, date)
+        if odds_data:
+            show_odds_comparison(proba, odds_data, home_team, away_team)
+        else:
+            st.caption("No Bet365 odds available for this fixture in the dataset.")
 
         col_h, col_a = st.columns(2)
         with col_h:
