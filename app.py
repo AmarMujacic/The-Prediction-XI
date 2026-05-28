@@ -25,6 +25,8 @@ import torch
 
 sys.path.insert(0, "src")
 
+import shap
+
 from model import FootballMLP
 from features import (
     _team_rolling_stats,
@@ -40,6 +42,7 @@ from fm_import import (
     list_fm_teams,
     FM_EXPORT_DIR,
 )
+from shap_explain import shap_for_prediction
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -148,6 +151,50 @@ def run_model(model_name, vec, mlp, tabpfn, baseline):
     else:
         return None
     return proba
+
+
+# ---------------------------------------------------------------------------
+# SHAP explanation chart
+# ---------------------------------------------------------------------------
+
+def show_shap_explanation(vec: np.ndarray, feat_cols: list, pred_cls: int):
+    """
+    Show a horizontal bar chart of the top SHAP feature contributions
+    for the predicted class. Green = pushed toward this outcome,
+    Red = pushed away from this outcome.
+    """
+    try:
+        shap_dict = shap_for_prediction(vec, feat_cols, top_n=10)
+        class_name = CLASS_NAMES[pred_cls]
+        features   = shap_dict[class_name]
+
+        names  = [f for f, _ in features]
+        values = [v for _, v in features]
+        colors = ["#2E7D32" if v > 0 else "#C62828" for v in values]
+
+        fig, ax = plt.subplots(figsize=(7, 4))
+        bars = ax.barh(names[::-1], values[::-1], color=colors[::-1], edgecolor="white")
+        ax.axvline(0, color="black", linewidth=0.8)
+        ax.set_title(f"Why {class_name}? — Top feature contributions", fontsize=12)
+        ax.set_xlabel("SHAP value (impact on prediction)")
+        for bar, val in zip(bars, values[::-1]):
+            ax.text(
+                val + (0.001 if val >= 0 else -0.001),
+                bar.get_y() + bar.get_height() / 2,
+                f"{val:+.3f}", va="center",
+                ha="left" if val >= 0 else "right",
+                fontsize=9,
+            )
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+        st.caption(
+            "🟢 Green = feature pushed model toward this outcome  "
+            "🔴 Red = feature pushed model away"
+        )
+    except Exception as e:
+        st.caption(f"SHAP explanation unavailable: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -272,6 +319,9 @@ def tab_historical(mlp, feat_cols, norm_stats, tabpfn, baseline, model_choice):
             st.metric("Away form (pts/game)", f"{feat_dict['away_form_points']:.2f}")
             st.metric("Away goal diff", f"{feat_dict['away_form_gd']:+.2f}")
 
+        st.markdown("#### Why this prediction?")
+        show_shap_explanation(vec, feat_cols, int(np.argmax(proba)))
+
         with st.expander("All features"):
             st.json({k: round(float(v), 4) for k, v in feat_dict.items()})
 
@@ -351,6 +401,9 @@ def tab_football_manager(mlp, feat_cols, norm_stats, tabpfn, baseline, model_cho
             return
 
         show_probability_chart(proba, home_team, away_team)
+
+        st.markdown("#### Why this prediction?")
+        show_shap_explanation(vec, feat_cols, int(np.argmax(proba)))
 
         # Show FM raw stats
         with st.expander("FM team stats"):

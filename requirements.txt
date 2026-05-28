@@ -22,6 +22,9 @@ fastparquet>=2023.10
 # Web app (Phase 9 bonus)
 streamlit>=1.30
 
+# SHAP explainability
+shap>=0.44
+
 # TabPFN — transformer pretrained on tabular data
 tabpfn>=0.1.9
 
