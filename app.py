@@ -43,6 +43,7 @@ from fm_import import (
     FM_EXPORT_DIR,
 )
 from shap_explain import shap_for_prediction
+from elo import get_team_elo, elo_tier, INITIAL_ELO
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -105,6 +106,15 @@ def load_match_history():
     if not os.path.exists(path):
         return None, "Run preprocessing.py first."
     return pd.read_parquet(path), None
+
+
+@st.cache_data
+def load_elo_ratings() -> dict:
+    path = os.path.join(MODELS_DIR, "elo_final.pkl")
+    if not os.path.exists(path):
+        return {}
+    with open(path, "rb") as f:
+        return pickle.load(f)
 
 
 # ---------------------------------------------------------------------------
@@ -195,6 +205,76 @@ def show_shap_explanation(vec: np.ndarray, feat_cols: list, pred_cls: int):
         )
     except Exception as e:
         st.caption(f"SHAP explanation unavailable: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Elo rating display
+# ---------------------------------------------------------------------------
+
+def show_elo_ratings(home_team: str, away_team: str, elo_ratings: dict):
+    """Display Elo ratings and tier badges for both teams."""
+    if not elo_ratings:
+        return
+
+    home_elo  = get_team_elo(home_team, elo_ratings)
+    away_elo  = get_team_elo(away_team, elo_ratings)
+    home_tier = elo_tier(home_elo)
+    away_tier = elo_tier(away_elo)
+
+    tier_colors = {
+        "Elite": "#FFD700", "Strong": "#2196F3",
+        "Average": "#78909C", "Weak": "#FF9800", "Poor": "#F44336"
+    }
+
+    st.markdown("#### Elo Strength Ratings")
+    col1, col2, col3 = st.columns([2, 1, 2])
+
+    with col1:
+        st.metric(f"🏠 {home_team}", f"{home_elo:.0f}",
+                  delta=f"{home_elo - INITIAL_ELO:+.0f} vs avg")
+        color = tier_colors.get(home_tier, "#78909C")
+        st.markdown(
+            f"<span style='background:{color};color:black;padding:3px 10px;"
+            f"border-radius:12px;font-weight:bold;font-size:13px'>{home_tier}</span>",
+            unsafe_allow_html=True,
+        )
+
+    with col2:
+        diff = home_elo - away_elo
+        arrow = "🔴" if diff < -30 else ("🟢" if diff > 30 else "🟡")
+        st.markdown(
+            f"<div style='text-align:center;margin-top:20px'>"
+            f"<b style='font-size:18px'>{arrow}</b><br>"
+            f"<span style='font-size:11px;color:grey'>{abs(diff):.0f} pt gap</span>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+    with col3:
+        st.metric(f"✈️ {away_team}", f"{away_elo:.0f}",
+                  delta=f"{away_elo - INITIAL_ELO:+.0f} vs avg")
+        color = tier_colors.get(away_tier, "#78909C")
+        st.markdown(
+            f"<span style='background:{color};color:black;padding:3px 10px;"
+            f"border-radius:12px;font-weight:bold;font-size:13px'>{away_tier}</span>",
+            unsafe_allow_html=True,
+        )
+
+    # Elo bar comparison
+    fig, ax = plt.subplots(figsize=(6, 1.2))
+    total = home_elo + away_elo
+    home_pct = home_elo / total
+    ax.barh([0], [home_pct], color="#2196F3", height=0.5, label=home_team)
+    ax.barh([0], [1 - home_pct], left=[home_pct], color="#F44336",
+            height=0.5, label=away_team)
+    ax.axvline(0.5, color="white", linewidth=1.5)
+    ax.set_xlim(0, 1)
+    ax.axis("off")
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.1),
+              ncol=2, fontsize=9, frameon=False)
+    plt.tight_layout()
+    st.pyplot(fig)
+    plt.close(fig)
 
 
 # ---------------------------------------------------------------------------
@@ -291,6 +371,11 @@ def tab_historical(mlp, feat_cols, norm_stats, tabpfn, baseline, model_choice):
     pred_date = st.date_input("Match Date", value=pd.Timestamp("2016-04-01").date(),
                               key="hist_date")
 
+    # Show Elo ratings as soon as teams are selected
+    elo_ratings = load_elo_ratings()
+    if elo_ratings:
+        show_elo_ratings(home_team, away_team, elo_ratings)
+
     if st.button("Predict", use_container_width=True, key="hist_btn"):
         if home_team == away_team:
             st.warning("Select two different teams.")
@@ -384,6 +469,11 @@ def tab_football_manager(mlp, feat_cols, norm_stats, tabpfn, baseline, model_cho
     with col2:
         away_team = st.selectbox("Away Team", fm_teams, index=min(1, len(fm_teams)-1),
                                  key="fm_away")
+
+    # Show Elo ratings live as teams are selected
+    elo_ratings = load_elo_ratings()
+    if elo_ratings:
+        show_elo_ratings(home_team, away_team, elo_ratings)
 
     if st.button("Predict (FM Data)", use_container_width=True, key="fm_btn"):
         if home_team == away_team:
