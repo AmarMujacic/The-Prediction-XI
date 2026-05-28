@@ -499,7 +499,7 @@ def run_model(model_name, vec, mlp, tabpfn, baseline,
             return None
         return proba
     except Exception as e:
-        st.error(f"Model error ({model_name}): {e}")
+        st.exception(e)
         return None
 
 
