@@ -490,25 +490,31 @@ def run_model(model_name, vec, mlp, tabpfn, baseline,
                 warnings.simplefilter("ignore")
                 proba = lgbm.predict_proba(x_2d)[0]
         elif model_name == "Ensemble" and ensemble is not None:
-            # Build ensemble manually so MLP gets a tensor not numpy
-            models  = ensemble.models
-            weights = ensemble.weights
-            combined = np.zeros(3, dtype=np.float64)
-            for model, w in zip(models, weights):
+            # Run each model individually, skip TabPFN (CPU issues on Windows)
+            import warnings
+            combined     = np.zeros(3, dtype=np.float64)
+            total_weight = 0.0
+            for model, w in zip(ensemble.models, ensemble.weights):
+                # Skip TabPFN
+                if hasattr(model, "clf") and "tabpfn" in type(model).__name__.lower():
+                    continue
                 try:
                     if isinstance(model, torch.nn.Module):
                         t = torch.from_numpy(x_2d.astype("float32"))
                         with torch.no_grad():
                             p = torch.softmax(model(t), dim=1).numpy()[0]
                     else:
-                        import warnings
                         with warnings.catch_warnings():
                             warnings.simplefilter("ignore")
                             p = model.predict_proba(x_2d)[0]
-                    combined += w * p
+                    combined     += w * p
+                    total_weight += w
                 except Exception:
                     pass
-            proba = (combined / combined.sum()).astype(np.float32)
+            if total_weight > 0:
+                proba = (combined / total_weight).astype(np.float32)
+            else:
+                return None
         else:
             return None
         return proba
@@ -788,13 +794,12 @@ def render_sidebar(mlp, tabpfn, baseline, xgb=None, lgbm=None, ensemble=None):
         st.markdown("Football match outcome predictor")
         st.markdown("---")
 
-        # Model selector
+        # Model selector (TabPFN excluded — not supported on CPU/Windows)
         available = []
-        if ensemble is not None: available.append("Ensemble")   # default — best
+        if ensemble is not None: available.append("Ensemble")
         if mlp      is not None: available.append("Deep MLP")
         if xgb      is not None: available.append("XGBoost")
         if lgbm     is not None: available.append("LightGBM")
-        if tabpfn   is not None: available.append("TabPFN")
         if baseline is not None: available.append("Random Forest")
         if not available:
             available = ["Deep MLP"]
