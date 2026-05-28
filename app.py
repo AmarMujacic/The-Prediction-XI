@@ -810,11 +810,6 @@ def tab_historical(mlp, feat_cols, norm_stats, tabpfn, baseline, model_choice):
     if elo_ratings:
         show_elo_ratings(home_team, away_team, elo_ratings)
 
-    # Show H2H history
-    if home_team != away_team:
-        with st.expander("Head-to-Head History", expanded=True):
-            show_h2h_history(matches, home_team, away_team)
-
     if st.button("Predict", use_container_width=True, key="hist_btn"):
         if home_team == away_team:
             st.warning("Select two different teams.")
