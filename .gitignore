@@ -24,3 +24,10 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+# One-off utility scripts
+auth_tabpfn.py
+generate_report.py
+
+# Claude internal
+.claude/

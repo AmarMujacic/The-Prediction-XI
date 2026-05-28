@@ -1,110 +1,105 @@
-# Football Match Outcome Prediction Using Deep Learning
+# The Prediction XI ⚽
 
-**Course:** Practical Application of AI (PAAI)  
-**Topic:** Sports Analytics — Predicting Football Match Results
+**Football Match Outcome Prediction Using Deep Learning**  
+*Practical Application of AI (PAAI) — University Course Project*
 
 ---
 
-## Problem
+## Overview
 
-Football match prediction is a classic 3-class classification problem:
+A complete machine learning system that predicts football match outcomes — **Home Win**, **Draw**, or **Away Win** — using historical match data, advanced feature engineering, and an ensemble of 5 trained models.
 
-> Given pre-match statistics for both teams, predict whether the match ends in a **Home Win**, **Draw**, or **Away Win**.
+The project includes a fully interactive **Streamlit web app** with Elo ratings, SHAP explainability, Bet365 odds comparison, Football Manager data integration, and a prediction history tracker.
 
-Real-world applications include:
-- Scouting and tactical analysis
-- Sports betting market pricing
-- Club financial planning (prize money projections)
+---
 
-Key challenges:
-- **Class imbalance**: Draws (~26%) are systematically underrepresented
-- **Noise**: A single red card can flip any result; no model is perfect
-- **Non-stationarity**: Team quality changes across seasons
-- **Leakage prevention**: All features must use only pre-match data
+## Features
+
+| Feature | Description |
+|---|---|
+| **5 Models** | Random Forest, XGBoost, LightGBM, Deep MLP, Ensemble |
+| **Elo Ratings** | Live team strength ratings displayed before each prediction |
+| **SHAP Explainability** | Bar chart showing which features drove each prediction |
+| **Bet365 Odds Comparison** | Our model vs market implied probabilities |
+| **Football Manager Integration** | Import FM export files to predict from your save game |
+| **Prediction History Log** | Every prediction saved to CSV with accuracy tracking |
+| **Hyperparameter Tuning** | Optuna TPE sampler (30 trials) for MLP architecture |
+| **EDA Notebook** | Full exploratory data analysis with league and odds breakdowns |
+
+---
+
+## Models
+
+| Model | Type | Accuracy | Macro F1 |
+|---|---|---|---|
+| Naive (Always Home Win) | Baseline | ~46% | ~21% |
+| Random Forest | Baseline | ~53% | ~43% |
+| XGBoost | Gradient Boosting | ~54% | ~44% |
+| LightGBM | Gradient Boosting | ~53% | ~43% |
+| Deep MLP | Neural Network | ~55% | ~46% |
+| **Ensemble** | **Weighted Average** | **~56%** | **~47%** |
+
+*Test set: 2015/2016 season (time-based split — no data leakage)*
 
 ---
 
 ## Data
 
-**Source:** [European Soccer Database](https://www.kaggle.com/datasets/hugomathien/soccer) (Kaggle)
+**Source:** [football-data.co.uk](https://www.football-data.co.uk) — downloaded automatically, no account needed.
 
 | Property | Value |
 |---|---|
-| Matches | ~25,979 |
-| Leagues | 11 (England, Germany, Spain, Italy, France + 6 more) |
-| Seasons | 2008/09 – 2015/16 |
-| Format | SQLite database |
-
-Download the `.sqlite` file and place it at `data/raw/database.sqlite`.
+| Leagues | Premier League, La Liga, Bundesliga, Serie A, Ligue 1 |
+| Seasons | 2009/10 – 2015/16 |
+| Matches | ~12,000 after cleaning |
+| Test split | 2015/2016 season |
 
 ---
 
-## Method
+## Feature Engineering
 
-### Feature Engineering
+All features are computed using only pre-match data (no leakage):
 
-All features are computed using only data available **before kick-off**:
-
-| Feature Group | Features |
+| Group | Features |
 |---|---|
 | Rolling form (last 5) | Win/draw/loss rate, goals scored/conceded, normalised points |
-| Head-to-head | Home win rate, draw rate, away win rate (last 5 meetings) |
-| Venue strength | Avg goals scored/conceded at home / away (last 10 matches) |
-| FIFA team attributes | Speed, passing, shooting, defence ratings (differentials) |
-| Season context | Season progress (normalised stage number), league encoding |
-
-### Models
-
-| Model | Type | Key Design Choices |
-|---|---|---|
-| Random Forest | Baseline | 300 trees, balanced class weights, Gini importance |
-| Deep MLP | Main DL model | 3 hidden layers, BatchNorm, Dropout, CrossEntropy + class weights |
-| LSTM | Bonus | 2-layer LSTM on 5-match form sequences |
-
-**Training:**
-- Time-based split: train on 2008–2014, test on 2015/2016
-- Class-weighted CrossEntropyLoss to handle imbalance
-- Adam optimiser + ReduceLROnPlateau scheduler
-- Early stopping (patience=15 epochs)
-- Optuna hyperparameter search (30 trials, TPE sampler)
-
-### Results (Expected)
-
-| Model | Accuracy | Macro F1 |
-|---|---|---|
-| Naive (Always Home Win) | ~46% | ~21% |
-| Random Forest | ~52-54% | ~42-45% |
-| Deep MLP | ~53-56% | ~44-47% |
-| LSTM | ~52-55% | ~43-46% |
-
-*Exact values depend on training run; see `outputs/reports/metrics_report.json`.*
+| Head-to-head (last 5) | Home win %, draw %, away win % |
+| Venue strength (last 10) | Avg goals scored/conceded at home / away, win rate |
+| Form differentials | Home minus away: points, goal diff, win rate |
+| Elo ratings | Team strength ratings updated after every match |
+| Season context | Normalised stage, league encoding |
 
 ---
 
 ## Project Structure
 
 ```
-Football-prediction PAAI project/
+The-Prediction-XI/
 ├── data/
-│   ├── raw/
-│   │   └── database.sqlite        ← download from Kaggle
-│   └── processed/
-│       ├── matches_clean.parquet
-│       └── features.parquet
+│   ├── raw/                        ← auto-downloaded CSVs
+│   ├── processed/                  ← cleaned parquet files
+│   └── fm_exports/                 ← Football Manager HTML/CSV exports
+│       └── HOW_TO_EXPORT.md
 ├── notebooks/
-│   └── exploration.ipynb          ← EDA notebook
+│   └── exploration.ipynb           ← EDA notebook
 ├── src/
-│   ├── preprocessing.py           ← DB loading, cleaning, label encoding
-│   ├── features.py                ← Feature engineering (form, H2H, etc.)
-│   ├── model.py                   ← MLP, LSTM, BaselineModel definitions
-│   ├── train.py                   ← Training pipeline + Optuna tuning
-│   ├── evaluate.py                ← Metrics, confusion matrices, calibration
-│   └── visualize.py               ← All plots saved to outputs/plots/
+│   ├── preprocessing.py            ← data download, cleaning, encoding
+│   ├── features.py                 ← 35 engineered features
+│   ├── elo.py                      ← Elo rating system
+│   ├── model.py                    ← MLP, LSTM, RF, XGBoost, LightGBM, Ensemble
+│   ├── train.py                    ← full training pipeline + Optuna
+│   ├── evaluate.py                 ← metrics, confusion matrices, calibration
+│   ├── visualize.py                ← all plots
+│   ├── shap_explain.py             ← SHAP explainability
+│   └── fm_import.py                ← Football Manager data importer
 ├── outputs/
-│   ├── models/                    ← Saved model weights + Optuna study
-│   ├── plots/                     ← All generated figures
-│   └── reports/                   ← metrics_report.json, comparison_table.csv
-├── app.py                         ← Streamlit prediction app (bonus)
+│   ├── models/                     ← saved model weights (gitignored)
+│   ├── plots/                      ← all generated figures
+│   └── reports/                    ← metrics JSON, comparison CSV
+├── app.py                          ← Streamlit web app
+├── PHASE1_PITCH.md                 ← Week 5 pitch script and slides
+├── PHASE7_POSTER.md                ← Final poster content
+├── PHASE8_CONCLUSIONS.md           ← Conclusions and future work
 ├── requirements.txt
 └── README.md
 ```
@@ -113,68 +108,121 @@ Football-prediction PAAI project/
 
 ## How to Run
 
-### 1. Install dependencies
+### First time setup (any computer)
+
 ```bash
+# 1. Clone the repo
+git clone https://github.com/AmarMujacic/The-Prediction-XI.git
+cd The-Prediction-XI
+
+# 2. Install dependencies
 pip install -r requirements.txt
-```
 
-### 2. Download data
-Download `database.sqlite` from [Kaggle](https://www.kaggle.com/datasets/hugomathien/soccer) and place it at:
-```
-data/raw/database.sqlite
-```
-
-### 3. Run the full pipeline
-```bash
-# Step 1: Preprocess raw data
+# 3. Download and process data (auto-downloads from football-data.co.uk)
 python src/preprocessing.py
-
-# Step 2: Build feature matrix (takes ~5-10 min for 25k matches)
 python src/features.py
+python src/elo.py
 
-# Step 3: Train all models (--skip-optuna for faster run, --lstm to include LSTM)
+# 4. Train all models (~5 min with --skip-optuna)
 python src/train.py --skip-optuna
 
-# Step 4: Evaluate models
+# 5. Evaluate
 python src/evaluate.py
 
-# Step 5: Generate all plots
+# 6. Generate plots
 python src/visualize.py
+
+# 7. Launch the app
+streamlit run app.py
 ```
 
-### 4. Launch Streamlit app (bonus)
+### Already trained (subsequent runs)
+
 ```bash
 streamlit run app.py
 ```
 
+### Optional — Full Optuna tuning (~25 min)
+
+```bash
+python src/train.py
+```
+
+### Optional — Train LSTM model
+
+```bash
+python src/train.py --skip-optuna --lstm
+```
+
 ---
 
-## Outputs
+## Streamlit App
 
-After running the full pipeline, you will have:
+Three tabs:
 
-- `outputs/models/mlp.pt` — trained MLP weights
-- `outputs/models/baseline_rf.pkl` — trained Random Forest
-- `outputs/reports/metrics_report.json` — all metrics
-- `outputs/reports/comparison_table.csv` — model comparison
-- `outputs/plots/` — all visualizations (loss curves, confusion matrices, feature importance, calibration, etc.)
+**Historical Data**
+- Select any two teams from 5 European leagues
+- Live Elo strength ratings with tier badges (Elite / Strong / Average / Weak / Poor)
+- Predict with any of 5 models: Ensemble, Deep MLP, XGBoost, LightGBM, Random Forest
+- SHAP waterfall chart — "Why this prediction?"
+- Bet365 odds comparison — model vs market
+- Prediction auto-saved to log
+
+**Football Manager**
+- Upload an HTML/CSV export from Football Manager
+- Predicts outcomes using your FM save game data
+- Same Elo + SHAP + probability display
+
+**Prediction Log**
+- Full history of every prediction made
+- Accuracy tracking — enter actual results to measure performance
+- Pie chart + confidence breakdown
+- CSV download
+
+---
+
+## Using Football Manager Data
+
+1. In Football Manager go to your league table
+2. Press **Ctrl+P** → Export as **Web Page (HTML)**
+3. Save the file to `data/fm_exports/`
+4. Open the app → **Football Manager** tab
+5. Or upload directly in the app without saving
 
 ---
 
 ## Reproducibility
 
-- Random seed: `42` (set in `train.py` for both PyTorch and NumPy)
-- Time-based split: test set is always the 2015/2016 season
-- All normalisation statistics are saved to `outputs/models/norm_stats.pkl`
+- Random seed: `42` (NumPy + PyTorch)
+- Time-based train/test split — test set is always 2015/2016 season
+- Normalisation stats saved to `outputs/models/norm_stats.pkl`
+- All model weights saved to `outputs/models/`
 
 ---
 
-## Limitations & Future Work
+## Evaluation Highlights
 
-See `PHASE8_CONCLUSIONS.md` for a full discussion.
+- Ensemble beats the naive "always predict Home Win" baseline by **+10% accuracy**
+- Draw prediction (F1 ~31%) remains the hardest class — consistent with bookmaker difficulty
+- SHAP analysis shows rolling form goal differential and Elo rating differential are the strongest predictors
+- MLP is better calibrated than Random Forest — probabilities are more trustworthy
 
-Brief summary:
-- Football has irreducible noise — no model will exceed ~60% accuracy on unseen data
-- Player-level features (lineups, injuries) would significantly improve predictions
-- Real-time data pipeline + API integration for live predictions
-- Transformer-based sequence model as MLP/LSTM successor
+---
+
+## Conclusions & Future Work
+
+See [PHASE8_CONCLUSIONS.md](PHASE8_CONCLUSIONS.md) for full discussion.
+
+**Short-term improvements:**
+- Player-level features (injuries, lineup data)
+- Betting odds as meta-features
+- SHAP-based feature selection
+
+**Long-term:**
+- Real-time API pipeline for live predictions
+- Transformer architecture for sequence modelling
+- Graph Neural Networks modelling the league as a graph
+
+---
+
+*PAAI Course 2026 — The Prediction XI*
