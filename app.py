@@ -57,6 +57,7 @@ st.set_page_config(
 MODELS_DIR   = os.path.join("outputs", "models")
 CLASS_NAMES  = ["Home Win", "Draw", "Away Win"]
 CLASS_COLORS = ["#2196F3", "#FF9800", "#F44336"]
+LOG_PATH     = os.path.join("outputs", "reports", "prediction_log.csv")
 
 
 # ---------------------------------------------------------------------------
@@ -115,6 +116,159 @@ def load_elo_ratings() -> dict:
         return {}
     with open(path, "rb") as f:
         return pickle.load(f)
+
+
+# ---------------------------------------------------------------------------
+# Prediction log
+# ---------------------------------------------------------------------------
+
+LOG_COLUMNS = [
+    "timestamp", "home_team", "away_team", "model",
+    "prediction", "p_home_win", "p_draw", "p_away_win",
+    "confidence", "source", "actual_result",
+]
+
+
+def load_log() -> pd.DataFrame:
+    if os.path.exists(LOG_PATH):
+        return pd.read_csv(LOG_PATH)
+    return pd.DataFrame(columns=LOG_COLUMNS)
+
+
+def save_prediction(home_team: str, away_team: str, model: str,
+                    proba: np.ndarray, source: str = "Historical"):
+    """Append one prediction row to the CSV log."""
+    pred_cls = int(np.argmax(proba))
+    row = {
+        "timestamp":   pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"),
+        "home_team":   home_team,
+        "away_team":   away_team,
+        "model":       model,
+        "prediction":  CLASS_NAMES[pred_cls],
+        "p_home_win":  round(float(proba[0]), 4),
+        "p_draw":      round(float(proba[1]), 4),
+        "p_away_win":  round(float(proba[2]), 4),
+        "confidence":  round(float(proba[pred_cls]), 4),
+        "source":      source,
+        "actual_result": "",       # user can fill in later
+    }
+    df = load_log()
+    df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+    os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
+    df.to_csv(LOG_PATH, index=False)
+
+
+def show_prediction_log():
+    """Render the full prediction history tab."""
+    st.subheader("Prediction History Log")
+    df = load_log()
+
+    if df.empty:
+        st.info("No predictions made yet. Go to the Historical Data or Football Manager tab and make a prediction.")
+        return
+
+    # ---- Summary stats ----
+    total = len(df)
+    filled = df[df["actual_result"].notna() & (df["actual_result"] != "")]
+    accuracy = None
+    if len(filled) > 0:
+        correct = (filled["prediction"] == filled["actual_result"]).sum()
+        accuracy = correct / len(filled) * 100
+
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total Predictions", total)
+    col2.metric("With Actual Result", len(filled))
+    col3.metric("Accuracy", f"{accuracy:.1f}%" if accuracy is not None else "N/A")
+    col4.metric("Most Used Model", df["model"].mode()[0] if not df.empty else "—")
+
+    st.markdown("---")
+
+    # ---- Result distribution pie ----
+    if total > 0:
+        pred_counts = df["prediction"].value_counts()
+        col_a, col_b = st.columns([1, 2])
+
+        with col_a:
+            fig, ax = plt.subplots(figsize=(3.5, 3.5))
+            colors_pie = [CLASS_COLORS[CLASS_NAMES.index(c)]
+                          if c in CLASS_NAMES else "#999"
+                          for c in pred_counts.index]
+            ax.pie(pred_counts.values, labels=pred_counts.index,
+                   colors=colors_pie, autopct="%1.0f%%",
+                   startangle=90, textprops={"fontsize": 10})
+            ax.set_title("Predicted outcomes", fontsize=11)
+            plt.tight_layout()
+            st.pyplot(fig)
+            plt.close(fig)
+
+        with col_b:
+            # Avg confidence per predicted outcome
+            avg_conf = df.groupby("prediction")["confidence"].mean().reset_index()
+            avg_conf.columns = ["Outcome", "Avg Confidence"]
+            avg_conf["Avg Confidence"] = (avg_conf["Avg Confidence"] * 100).round(1)
+            avg_conf = avg_conf.sort_values("Avg Confidence", ascending=False)
+
+            fig2, ax2 = plt.subplots(figsize=(4.5, 3))
+            bar_colors = [CLASS_COLORS[CLASS_NAMES.index(c)]
+                          if c in CLASS_NAMES else "#999"
+                          for c in avg_conf["Outcome"]]
+            ax2.bar(avg_conf["Outcome"], avg_conf["Avg Confidence"],
+                    color=bar_colors, edgecolor="white")
+            ax2.set_ylabel("Avg Confidence (%)")
+            ax2.set_title("Avg confidence per outcome", fontsize=11)
+            ax2.set_ylim(0, 100)
+            for i, v in enumerate(avg_conf["Avg Confidence"]):
+                ax2.text(i, v + 1, f"{v:.1f}%", ha="center", fontsize=9)
+            plt.tight_layout()
+            st.pyplot(fig2)
+            plt.close(fig2)
+
+    st.markdown("---")
+
+    # ---- Editable table — user can enter actual results ----
+    st.markdown("**Full Log** — enter actual results in the last column to track accuracy:")
+
+    result_options = ["", "Home Win", "Draw", "Away Win"]
+
+    display_df = df.copy()
+    display_df["confidence"] = (display_df["confidence"] * 100).round(1).astype(str) + "%"
+
+    # Colour-code prediction column
+    def _color_pred(val):
+        colors_map = {"Home Win": "background-color:#E3F2FD",
+                      "Draw": "background-color:#FFF8E1",
+                      "Away Win": "background-color:#FFEBEE"}
+        return colors_map.get(val, "")
+
+    styled = display_df.style.applymap(_color_pred, subset=["prediction"])
+    st.dataframe(styled, use_container_width=True, height=350)
+
+    # Allow updating actual results
+    with st.expander("Enter actual result for a prediction"):
+        if len(df) > 0:
+            row_idx = st.selectbox(
+                "Select prediction",
+                df.index,
+                format_func=lambda i: (
+                    f"{df.loc[i,'timestamp']} | "
+                    f"{df.loc[i,'home_team']} vs {df.loc[i,'away_team']} "
+                    f"→ predicted {df.loc[i,'prediction']}"
+                ),
+            )
+            actual = st.selectbox("Actual result", result_options[1:], key="actual_sel")
+            if st.button("Save actual result", key="save_actual"):
+                df.loc[row_idx, "actual_result"] = actual
+                df.to_csv(LOG_PATH, index=False)
+                st.success("Saved!")
+                st.rerun()
+
+    # Download button
+    st.download_button(
+        label="Download log as CSV",
+        data=df.to_csv(index=False).encode("utf-8"),
+        file_name="prediction_log.csv",
+        mime="text/csv",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -519,6 +673,8 @@ def tab_historical(mlp, feat_cols, norm_stats, tabpfn, baseline, model_choice):
             return
 
         show_probability_chart(proba, home_team, away_team)
+        save_prediction(home_team, away_team, model_choice, proba, source="Historical")
+        st.caption("✅ Prediction saved to log")
 
         col_h, col_a = st.columns(2)
         with col_h:
@@ -615,6 +771,8 @@ def tab_football_manager(mlp, feat_cols, norm_stats, tabpfn, baseline, model_cho
             return
 
         show_probability_chart(proba, home_team, away_team)
+        save_prediction(home_team, away_team, model_choice, proba, source="Football Manager")
+        st.caption("✅ Prediction saved to log")
 
         st.markdown("#### Why this prediction?")
         show_shap_explanation(vec, feat_cols, int(np.argmax(proba)))
@@ -649,13 +807,16 @@ def main():
 
     model_choice = render_sidebar(mlp, tabpfn, baseline)
 
-    tab1, tab2 = st.tabs(["Historical Data", "Football Manager"])
+    tab1, tab2, tab3 = st.tabs(["Historical Data", "Football Manager", "Prediction Log"])
 
     with tab1:
         tab_historical(mlp, feat_cols, norm_stats, tabpfn, baseline, model_choice)
 
     with tab2:
         tab_football_manager(mlp, feat_cols, norm_stats, tabpfn, baseline, model_choice)
+
+    with tab3:
+        show_prediction_log()
 
 
 if __name__ == "__main__":
