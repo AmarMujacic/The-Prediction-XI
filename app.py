@@ -15,6 +15,9 @@ import os
 import pickle
 import sys
 
+# Required for TabPFN on CPU with large datasets
+os.environ.setdefault("TABPFN_ALLOW_CPU_LARGE_DATASET", "1")
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -801,9 +804,10 @@ def tab_historical(mlp, feat_cols, norm_stats, tabpfn, baseline, model_choice):
     with col2:
         away_team = st.selectbox("Away Team", all_teams, index=1, key="hist_away")
 
-    league    = st.selectbox("League", all_leagues, key="hist_league")
-    pred_date = st.date_input("Match Date", value=pd.Timestamp("2016-04-01").date(),
-                              key="hist_date")
+    league = st.selectbox("League", all_leagues, key="hist_league")
+
+    # Use the latest date in the dataset automatically
+    pred_date = matches["date"].max()
 
     # Show Elo ratings as soon as teams are selected
     elo_ratings = load_elo_ratings()
@@ -816,7 +820,7 @@ def tab_historical(mlp, feat_cols, norm_stats, tabpfn, baseline, model_choice):
             return
         date       = pd.Timestamp(pred_date)
         league_enc = league_enc_map.get(league, 0)
-        season_yr  = date.year if date.month >= 7 else date.year - 1
+        season_yr  = int(date.year) if date.month >= 7 else int(date.year) - 1
 
         with st.spinner("Computing features…"):
             feat_dict = compute_historical_features(
