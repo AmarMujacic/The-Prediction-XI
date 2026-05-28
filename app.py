@@ -208,6 +208,125 @@ def show_shap_explanation(vec: np.ndarray, feat_cols: list, pred_cls: int):
 
 
 # ---------------------------------------------------------------------------
+# Head-to-Head history
+# ---------------------------------------------------------------------------
+
+def show_h2h_history(matches: pd.DataFrame, home_team: str, away_team: str, n: int = 10):
+    """
+    Display the last N head-to-head meetings between home_team and away_team
+    as a visual timeline with scores and result colour coding.
+    """
+    mask = (
+        ((matches["home_team"] == home_team) & (matches["away_team"] == away_team))
+        | ((matches["home_team"] == away_team) & (matches["away_team"] == home_team))
+    )
+    h2h = matches[mask].sort_values("date", ascending=False).head(n)
+
+    if h2h.empty:
+        st.info("No historical H2H meetings found between these two teams.")
+        return
+
+    st.markdown(f"#### Last {len(h2h)} Meetings — {home_team} vs {away_team}")
+
+    # Summary stats
+    home_wins = draws = away_wins = 0
+    home_gf = home_ga = 0
+
+    for _, row in h2h.iterrows():
+        if row["home_team"] == home_team:
+            hg, ag = int(row["home_goals"]), int(row["away_goals"])
+        else:
+            hg, ag = int(row["away_goals"]), int(row["home_goals"])
+        home_gf += hg
+        home_ga += ag
+        if hg > ag:   home_wins += 1
+        elif hg == ag: draws += 1
+        else:          away_wins += 1
+
+    # Summary metrics
+    col1, col2, col3, col4, col5 = st.columns(5)
+    col1.metric(f"{home_team} wins", home_wins)
+    col2.metric("Draws", draws)
+    col3.metric(f"{away_team} wins", away_wins)
+    col4.metric(f"Avg goals ({home_team})", f"{home_gf/len(h2h):.1f}")
+    col5.metric(f"Avg goals ({away_team})", f"{home_ga/len(h2h):.1f}")
+
+    st.markdown("---")
+
+    # Visual timeline — one row per match
+    for _, row in h2h.iterrows():
+        if row["home_team"] == home_team:
+            h_name = home_team
+            a_name = away_team
+            hg = int(row["home_goals"])
+            ag = int(row["away_goals"])
+        else:
+            h_name = home_team
+            a_name = away_team
+            hg = int(row["away_goals"])
+            ag = int(row["home_goals"])
+
+        # Determine result from home_team perspective
+        if hg > ag:
+            bg_color = "#E3F2FD"   # blue — home win
+            icon     = "🟦"
+            label    = f"{home_team} won"
+        elif hg == ag:
+            bg_color = "#F5F5F5"   # grey — draw
+            icon     = "🟨"
+            label    = "Draw"
+        else:
+            bg_color = "#FFEBEE"   # red — away win
+            icon     = "🟥"
+            label    = f"{away_team} won"
+
+        date_str = pd.Timestamp(row["date"]).strftime("%d %b %Y")
+
+        st.markdown(
+            f"""
+            <div style="background:{bg_color};border-radius:10px;
+                        padding:10px 16px;margin-bottom:6px;
+                        display:flex;align-items:center;justify-content:space-between;">
+                <span style="font-size:13px;color:#555">{date_str}</span>
+                <span style="font-size:15px;font-weight:bold">
+                    {h_name} &nbsp;
+                    <span style="font-size:22px;color:#1565C0">{hg}</span>
+                    &nbsp;–&nbsp;
+                    <span style="font-size:22px;color:#C62828">{ag}</span>
+                    &nbsp; {a_name}
+                </span>
+                <span style="font-size:13px">{icon} {label}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    # Mini bar chart of results
+    fig, ax = plt.subplots(figsize=(5, 1.2))
+    total = len(h2h)
+    ax.barh([0], [home_wins / total], color="#2196F3", height=0.5)
+    ax.barh([0], [draws / total], left=[home_wins / total], color="#B0BEC5", height=0.5)
+    ax.barh([0], [away_wins / total], left=[(home_wins + draws) / total],
+            color="#F44336", height=0.5)
+    ax.set_xlim(0, 1)
+    ax.axis("off")
+    # Labels
+    if home_wins / total > 0.12:
+        ax.text(home_wins / total / 2, 0, f"{home_wins}W",
+                ha="center", va="center", fontsize=10, color="white", fontweight="bold")
+    if draws / total > 0.12:
+        ax.text(home_wins / total + draws / total / 2, 0, f"{draws}D",
+                ha="center", va="center", fontsize=10, color="black", fontweight="bold")
+    if away_wins / total > 0.12:
+        ax.text((home_wins + draws) / total + away_wins / total / 2, 0, f"{away_wins}W",
+                ha="center", va="center", fontsize=10, color="white", fontweight="bold")
+    plt.tight_layout()
+    st.pyplot(fig)
+    plt.close(fig)
+    st.caption(f"🟦 {home_team}  🟨 Draw  🟥 {away_team}")
+
+
+# ---------------------------------------------------------------------------
 # Elo rating display
 # ---------------------------------------------------------------------------
 
@@ -375,6 +494,11 @@ def tab_historical(mlp, feat_cols, norm_stats, tabpfn, baseline, model_choice):
     elo_ratings = load_elo_ratings()
     if elo_ratings:
         show_elo_ratings(home_team, away_team, elo_ratings)
+
+    # Show H2H history
+    if home_team != away_team:
+        with st.expander("Head-to-Head History", expanded=True):
+            show_h2h_history(matches, home_team, away_team)
 
     if st.button("Predict", use_container_width=True, key="hist_btn"):
         if home_team == away_team:
