@@ -31,3 +31,13 @@ generate_report.py
 
 # Claude internal
 .claude/
+
+# Unrelated project accidentally nested here
+god-tier-site/
+
+# Node (poster generation)
+node_modules/
+package-lock.json
+make_poster.js
+make_poster.py
+outputs/reports/poster.*
