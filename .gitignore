@@ -1,12 +1,12 @@
-# Data (too large for GitHub)
+# Data files (too large for version control)
 data/raw/
 data/processed/
 
-# Trained model weights (large binary files)
+# Trained model artefacts
 outputs/models/*.pt
 outputs/models/*.pkl
 
-# Keep the reports and plots
+# Keep reports and plots
 !outputs/reports/
 !outputs/plots/
 
@@ -21,23 +21,10 @@ venv/
 # Jupyter checkpoints
 .ipynb_checkpoints/
 
+# Node
+node_modules/
+package-lock.json
+
 # OS
 .DS_Store
 Thumbs.db
-
-# One-off utility scripts
-auth_tabpfn.py
-generate_report.py
-
-# Claude internal
-.claude/
-
-# Unrelated project accidentally nested here
-god-tier-site/
-
-# Node (poster generation)
-node_modules/
-package-lock.json
-make_poster.js
-make_poster.py
-outputs/reports/poster.*
