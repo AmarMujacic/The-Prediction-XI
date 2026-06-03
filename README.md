@@ -225,4 +225,4 @@ See [PHASE8_CONCLUSIONS.md](PHASE8_CONCLUSIONS.md) for full discussion.
 
 ---
 
-*PAAI Course 2026 — The Prediction XI*
+
