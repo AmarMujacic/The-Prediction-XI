@@ -169,8 +169,9 @@ Three tabs:
 - Prediction auto-saved to log
 
 **Football Manager**
-- Upload an HTML/CSV export from Football Manager
-- Predicts outcomes using your FM save game data
+- Import a CSV or HTML export from your Football Manager save
+- Predicts outcomes from your save game's league-table stats
+- Sample export included (`data/fm_exports/fm_table.csv`)
 - Same Elo + SHAP + probability display
 
 **Prediction Log**
@@ -183,11 +184,35 @@ Three tabs:
 
 ## Using Football Manager Data
 
-1. In Football Manager go to your league table
-2. Press **Ctrl+P** → Export as **Web Page (HTML)**
-3. Save the file to `data/fm_exports/`
-4. Open the app → **Football Manager** tab
-5. Or upload directly in the app without saving
+The app reads team statistics from your Football Manager save and predicts
+match outcomes from them. Two ways to provide the data:
+
+**Option A — CSV (recommended, works on all FM versions)**
+
+Create a CSV with one row per team and these columns, then save it to
+`data/fm_exports/`:
+
+```
+team,played,wins,draws,losses,goals_scored,goals_conceded,points
+Man City,20,14,3,3,49,19,45
+Liverpool,20,13,3,4,48,23,42
+...
+```
+
+A working example from an FM26 save is included at
+[`data/fm_exports/fm_table.csv`](data/fm_exports/fm_table.csv).
+
+**Option B — HTML export (older FM versions)**
+
+In FM, open a league-table view, use the print/export flow, and choose
+**Web Page (HTML)**. Save the `.html` file to `data/fm_exports/`.
+(Note: in FM26, `Ctrl+P` opens Preferences — use the export icon on the
+table view instead.)
+
+**Then:**
+1. Open the app → **Football Manager** tab
+2. Reload the page, or use the **Upload** button to load a file directly
+3. Select two teams and predict — full Elo, SHAP and probability output
 
 ---
 
