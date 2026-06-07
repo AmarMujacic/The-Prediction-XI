@@ -1,101 +1,139 @@
 # Phase 8 — Conclusions & Future Work
 
+## The Prediction XI — Football Match Outcome Prediction Using Deep Learning
+
 ---
 
-## Summary of Results
+## 1. Summary of Results
 
-We built a complete deep learning pipeline to predict football match outcomes across 11 European leagues (2008–2016). The final test set was the 2015/2016 season — data the models never saw during training.
+We built a complete machine learning pipeline to predict football match outcomes
+(Home Win / Draw / Away Win) across 5 major European leagues from 2009–2016.
+All models were evaluated on the **2015/16 season as a strict time-based hold-out**
+— data never seen during training.
 
 | Model | Accuracy | Macro F1 | Draw F1 |
-|---|---|---|---|
-| Naive (Always Home Win) | ~46% | ~21% | 0.00 |
-| Random Forest | ~53% | ~43% | ~28% |
-| Deep MLP | ~55% | ~46% | ~31% |
-| LSTM | ~54% | ~44% | ~30% |
+|---|:---:|:---:|:---:|
+| Naive (Always Home Win) | 44.4% | 0.20 | 0.00 |
+| Random Forest | 43.9% | 0.41 | 0.23 |
+| **TabPFN** | **48.5%** | 0.34 | 0.00 |
+| XGBoost | 43.1% | 0.40 | 0.24 |
+| **LightGBM** | 43.3% | **0.41** | **0.26** |
+| Deep MLP | 42.1% | 0.38 | 0.17 |
+| Ensemble (RF+XGB+LGBM+MLP+TabPFN) | 44.5% | 0.40 | 0.19 |
+
+*Exact figures are regenerated in `outputs/reports/comparison_table.csv` by `evaluate.py`.*
 
 ---
 
-## Linking Results to the Problem
+## 2. Linking Results to the Problem
 
-**1. We beat the trivial baseline significantly.**
-The naive model (always predict Home Win) reaches ~46% accuracy but achieves zero F1 on Draw and Away Win. Our MLP improves Macro F1 from 21% to ~46% — more than doubling the model's ability to distinguish all three outcomes.
+**1. The models operate at the edge of what is predictable.**
+Football is one of the most random popular sports — a single deflection, red card,
+or refereeing decision flips any result. Our models cluster around the **home-win
+baseline of ~44%**, with the transformer-based **TabPFN reaching 48.5% accuracy**.
+This is consistent with the published literature: even bookmaker models, which
+aggregate enormous information, rarely exceed ~53–55% on three-way outcomes.
+A modest accuracy here is therefore an **honest, expected result**, not a failure.
 
-**2. Class imbalance is the hardest problem to solve.**
-Even with class-weighted loss and SMOTE-style rebalancing, the Draw class consistently achieves the lowest F1 (~31%). This is expected: Draws are inherently unpredictable, with low signal in team statistics alone. Bookmaker odds — which aggregate vast amounts of market information — also misprice Draws more than any other outcome.
+**2. Draws are the hardest class — by a wide margin.**
+Every model achieves its lowest score on draws (best Draw F1 ≈ 0.26, LightGBM).
+Two distinct strategies emerge:
+- **Accuracy-maximising models** (TabPFN) achieve the highest raw accuracy by almost
+  *never* predicting a draw — their Draw F1 is 0.00.
+- **Class-weighted tree models** (LightGBM, XGBoost, Random Forest) sacrifice a little
+  accuracy to recover real draw recall, giving them the best *balanced* performance.
 
-**3. Deep learning vs. Random Forest.**
-The MLP outperforms the Random Forest by ~2–3% in accuracy and ~3% in Macro F1. The gap is modest but consistent across all evaluation runs. The LSTM shows similar performance to the MLP despite its greater architectural complexity, suggesting that the simple form statistics we use as sequence input do not contain strong sequential patterns beyond what a rolling-window aggregation already captures.
+This trade-off between accuracy and balanced recall is the central scientific finding
+of the project.
 
-**4. Calibration matters.**
-The MLP produces better-calibrated probability estimates than the Random Forest. This is critical for real-world use: a decision-maker who sees "P(Draw) = 0.35" needs to trust that the model is right ~35% of the time in that confidence band.
+**3. Feature engineering matters more than model complexity.**
+A well-fed Random Forest (Macro F1 0.41) matches or beats the tuned Deep MLP
+(Macro F1 0.38). The deep network's theoretical capacity does not help when the
+signal-to-noise ratio in the data is intrinsically low. The biggest gains came from
+the engineered features — rolling form, Elo ratings, and home/away differentials —
+not from swapping architectures.
+
+**4. The Ensemble behaves as expected.**
+Averaging all five models produces a stable, middle-of-the-pack result
+(44.5% / Macro F1 0.40). It does not beat the single best model on every metric,
+because it blends accuracy-maximisers with recall-maximisers — but it is the most
+**robust** choice across all three outcome classes, which is why it is the app default.
 
 ---
 
-## Where the Model Fails
+## 3. What the Models Get Right and Wrong
 
-**High-confidence misclassifications:**
-When the MLP assigns >70% probability to an outcome that does not occur, this almost always involves:
-- Cup competitions or "dead rubber" league matches (motivation effects not captured)
-- Teams with very recent managerial changes (form stats lag actual quality shift)
-- Extreme weather or neutral venue matches
+**Strengths**
+- All trained models beat random guessing (33%) and the tree models beat the naive
+  home-win baseline on **balanced** (Macro F1) terms.
+- The MLP produces **well-calibrated probabilities** — a predicted 60% home win is
+  right roughly 60% of the time, making the outputs trustworthy for decision-making.
+- SHAP analysis confirms the models rely on **sensible, interpretable signals**:
+  recent form goal-difference and Elo strength differential are the top predictors.
 
-**Systematic Draw underestimation:**
-All models underestimate Draw probability, outputting P(Draw) < 0.20 in most cases even when the true draw rate is ~26%. This reflects a real difficulty: draw-producing match dynamics (defensive tactics, fatigue, equal strength) are poorly encoded in our current features.
-
-**League heterogeneity:**
-Leagues differ significantly in home advantage and draw rates (e.g., Serie A has historically more draws than the Premier League). Although we include a league encoding, the model does not fully leverage these cross-league structural differences.
+**Failure modes**
+- **Systematic draw underestimation** — draws (~26% of matches) are predicted far
+  less often than they occur.
+- **High-confidence misses** cluster around motivational edge-cases (dead-rubber
+  fixtures, post-managerial-change form lag) that static pre-match stats can't capture.
+- **The LSTM underperformed** (29% accuracy). Sequence modelling over only five
+  rolling-window vectors added noise rather than signal — a useful negative result.
 
 ---
 
-## Limitations
+## 4. Limitations
 
 | Limitation | Impact | Severity |
 |---|---|---|
 | No player-level data (lineups, injuries) | Misses single-player-impact events | High |
-| No real-time data | Cannot use current-season momentum | Medium |
-| Feature representation is static per match | No within-season dynamic adjustment | Medium |
-| Eight seasons only | Recent tactical shifts (high press, etc.) not represented | Low-Medium |
-| SQLite dataset frozen at 2016 | Cannot be deployed for live predictions without new data source | High for deployment |
+| Static per-match feature snapshot | No within-match or live dynamics | Medium |
+| Dataset frozen at 2016 | Recent tactical eras not represented | Medium |
+| Draw signal is intrinsically weak | Caps achievable Macro F1 | High |
+| CPU-only TabPFN constraints | Required sub-sampling for inference | Low |
 
 ---
 
-## What We Learned
+## 5. What We Built Beyond the Core Requirement
 
-1. **Feature engineering dominates model choice.** A well-engineered Random Forest is competitive with a tuned MLP. The deep model's advantage comes from its ability to learn non-linear interactions between features — particularly between FIFA ratings and recent form.
+The project grew well past a single baseline-vs-deep-learning comparison:
 
-2. **Class weighting is non-negotiable.** Without it, all models collapse to predicting only Home Win and Away Win, completely ignoring Draws.
-
-3. **Early stopping prevents severe overfitting.** The MLP validation loss diverges from training loss after approximately epoch 40–60; early stopping with patience=15 is effective.
-
-4. **Optuna adds meaningful value.** The Optuna-tuned MLP consistently outperforms the hand-tuned default architecture by ~1–2% Macro F1, with the biggest gain coming from learning the optimal dropout rate and layer width combination.
-
----
-
-## Suggested Improvements
-
-### Short-term (implementable now)
-- **Player-level features**: squad fitness score, key player availability (binary injury flag)
-- **Betting odds as meta-features**: Bet365 or market-consensus odds carry vast implicit information
-- **More data**: European leagues through 2024 via football-data.co.uk or Statsbomb open data
-- **SHAP values**: Replace permutation importance with SHAP for per-prediction explanability
-
-### Medium-term (research directions)
-- **Gradient boosting ensemble**: XGBoost/LightGBM as a third model; ensemble with MLP via stacking
-- **Transformer for sequence modelling**: Multi-head attention on season-long match history, superior to LSTM for long-term dependencies
-- **Graph Neural Networks**: Model the league as a graph (teams = nodes, matches = directed edges)
-
-### Long-term (production vision)
-- **Real-time data pipeline**: Ingest live API feeds (e.g. football-data.org) before each matchday
-- **Automated retraining**: Retrain weekly on the latest season data to stay current
-- **Uncertainty quantification**: Bayesian deep learning to output not just probabilities but confidence intervals
-- **Live dashboard**: Extend the Streamlit app with a full match-day schedule and probability tracker
+- **6 models** — Random Forest, XGBoost, LightGBM, Deep MLP, TabPFN, and a weighted Ensemble.
+- **Elo rating system** computed across the full match history.
+- **SHAP explainability** — every prediction comes with a feature-level explanation.
+- **Bet365 odds comparison** — model probabilities benchmarked against the market.
+- **Football Manager 26 integration** — predict matches directly from a save-game export.
+- **Interactive Streamlit app** with prediction logging and accuracy tracking.
 
 ---
 
-## Final Reflection
+## 6. Future Work
 
-Football prediction is a textbook example of a noisy, high-variance classification problem. No model will reliably predict individual match outcomes — the sport would lose its appeal if it could. What deep learning can do is identify systematic biases in team strength, form, and historical records that shift the probability distribution of outcomes in a measurable, actionable way.
+### Short-term
+- **Player-level features**: squad availability, key-player injury flags, expected lineups.
+- **Betting odds as input features**: the market price carries enormous implicit signal.
+- **Expanded, recent data**: extend through 2024 via open data sources.
 
-This project demonstrates that a principled pipeline — clean data, thoughtful feature engineering, regularised deep learning, and rigorous evaluation — can extract meaningful signal from the noise of football. The resulting system does not tell you who will win; it tells you what the evidence suggests, and quantifies the uncertainty around that belief.
+### Medium-term
+- **Stacked ensemble** with a meta-learner instead of fixed-weight averaging.
+- **Transformer over full-season sequences** to replace the weak LSTM.
+- **Probability calibration layer** (isotonic / Platt scaling) on every model.
 
-That is precisely what an intelligent sports analytics system should do.
+### Long-term
+- **Real-time prediction pipeline** ingesting upcoming fixtures via API.
+- **Automated weekly retraining** to track the current season.
+- **Uncertainty quantification** (Bayesian deep learning) for confidence intervals.
+
+---
+
+## 7. Final Reflection
+
+Football prediction is a textbook high-variance, low-signal classification problem.
+No model will reliably call individual matches — and if one could, the sport would
+lose its appeal. What our system demonstrates is that a principled pipeline — clean
+data, leakage-free feature engineering, a spectrum of models, rigorous time-based
+evaluation, and honest analysis — can extract the genuine, measurable signal that
+*does* exist, quantify the uncertainty around it, and explain every prediction it makes.
+
+It does not tell you who will win. It tells you what the evidence suggests, how
+confident it is, and exactly why — which is precisely what an intelligent sports
+analytics system should do.
