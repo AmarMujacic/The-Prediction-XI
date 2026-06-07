@@ -314,6 +314,6 @@ The-Prediction-XI/
 
 <div align="center">
 
-*Practical Application of AI · University of Sarajevo · 2026*
+*Practical Application of AI · University of Sarajevo · 2026.*
 
 </div>
