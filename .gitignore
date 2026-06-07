@@ -10,6 +10,9 @@ outputs/models/*.pkl
 !outputs/reports/
 !outputs/plots/
 
+# Runtime-generated prediction log
+outputs/reports/prediction_log.csv
+
 # Python
 __pycache__/
 *.pyc
