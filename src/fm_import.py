@@ -117,14 +117,19 @@ def normalise_fm_columns(df: pd.DataFrame) -> pd.DataFrame:
             rename[col] = FM_COLUMN_MAP[col_stripped]
     df = df.rename(columns=rename)
 
-    # Keep only columns we know how to use
-    keep = [c for c in FM_COLUMN_MAP.values() if c in df.columns]
+    # Keep only columns we know how to use (de-duplicated, order preserved)
+    keep = []
+    for c in FM_COLUMN_MAP.values():
+        if c in df.columns and c not in keep:
+            keep.append(c)
     missing = [c for c in ["team", "wins", "draws", "losses", "goals_scored", "goals_conceded"]
                if c not in df.columns]
     if missing:
         log.warning("Missing columns after mapping: %s", missing)
         log.warning("Available columns: %s", df.columns.tolist())
 
+    # Drop any duplicate column names before selecting
+    df = df.loc[:, ~df.columns.duplicated()]
     df = df[[c for c in keep if c in df.columns]].copy()
     return df
 
