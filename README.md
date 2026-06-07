@@ -5,6 +5,12 @@
 
 ---
 
+## Poster
+
+![Project Poster](outputs/reports/poster.webp)
+
+---
+
 ## Overview
 
 A complete machine learning system that predicts football match outcomes — **Home Win**, **Draw**, or **Away Win** — using historical match data, advanced feature engineering, and an ensemble of 5 trained models.
