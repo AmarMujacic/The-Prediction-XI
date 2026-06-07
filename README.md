@@ -7,7 +7,7 @@
 
 ## Poster
 
-![Project Poster](outputs/reports/poster.webp)
+![Project Poster](poster/poster.webp)
 
 ---
 
@@ -102,9 +102,9 @@ The-Prediction-XI/
 │   ├── models/                     ← saved model weights (gitignored)
 │   ├── plots/                      ← all generated figures
 │   └── reports/                    ← metrics JSON, comparison CSV
+├── poster/
+│   └── poster.webp                 ← final project poster
 ├── app.py                          ← Streamlit web app
-├── PHASE1_PITCH.md                 ← Week 5 pitch script and slides
-├── PHASE7_POSTER.md                ← Final poster content
 ├── PHASE8_CONCLUSIONS.md           ← Conclusions and future work
 ├── requirements.txt
 └── README.md
