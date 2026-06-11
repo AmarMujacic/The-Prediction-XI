@@ -18,7 +18,7 @@
 
 <div align="center">
 
-![Project Poster](poster/poster.webp)
+![Project Poster](poster/poster.png)
 
 </div>
 
@@ -266,7 +266,7 @@ The-Prediction-XI/
 │   ├── plots/                  ← generated figures
 │   └── reports/                ← metrics & comparison tables
 ├── poster/
-│   └── poster.webp             ← final project poster
+│   └── poster.png              ← final project poster
 ├── app.py                      ← Streamlit web app
 ├── CONTRIBUTORS.md
 ├── PHASE8_CONCLUSIONS.md       ← conclusions & future work
