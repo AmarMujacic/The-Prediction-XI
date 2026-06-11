@@ -36,16 +36,16 @@ It combines rigorous data engineering, **six** different models (from classic ba
 
 ##  Key Features
 
-| | Feature | Description |
-|---|---|---|
-|  | **6 Models** | Random Forest · XGBoost · LightGBM · Deep MLP · TabPFN · weighted Ensemble |
-| | **Elo Ratings** | Live team-strength ratings updated after every match, shown before each prediction |
-|  | **SHAP Explainability** | Per-prediction breakdown of which features drove the result |
-|  | **Bet365 Odds Comparison** | Model probabilities vs bookmaker market — highlights value gaps |
-|  | **Football Manager 26** | Import your FM save's league table and predict from it |
-|  | **Prediction Log** | Every prediction auto-saved with accuracy tracking & CSV export |
-|  | **Optuna Tuning** | Automated hyperparameter search for the neural network |
-|  | **EDA Notebook** | Full exploratory analysis of leagues, odds, and trends |
+| Feature | Description |
+|---|---|
+| **6 Models** | Random Forest · XGBoost · LightGBM · Deep MLP · TabPFN · weighted Ensemble |
+| **Elo Ratings** | Live team-strength ratings updated after every match, shown before each prediction |
+| **SHAP Explainability** | Per-prediction breakdown of which features drove the result |
+| **Bet365 Odds Comparison** | Model probabilities vs bookmaker market — highlights value gaps |
+| **Football Manager 26** | Import your FM save's league table and predict from it |
+| **Prediction Log** | Every prediction auto-saved with accuracy tracking & CSV export |
+| **Optuna Tuning** | Automated hyperparameter search for the neural network |
+| **EDA Notebook** | Full exploratory analysis of leagues, odds, and trends |
 
 ---
 
@@ -117,7 +117,7 @@ Six models are trained and compared, then combined into a soft-voting **Ensemble
 
 ---
 
-## 📈 Results
+##  Results
 
 Evaluated on the **2015/16 hold-out season** (unseen during training):
 
@@ -131,7 +131,7 @@ Evaluated on the **2015/16 hold-out season** (unseen during training):
 | Deep MLP | 42.1% | 0.38 | 0.17 | Neural network |
 | Ensemble | 44.5% | 0.40 | 0.19 | Soft-voting blend |
 
-> 📋 Exact numbers are reproduced in [`outputs/reports/comparison_table.csv`](outputs/reports/comparison_table.csv) and [`metrics_report.json`](outputs/reports/metrics_report.json) every time you run `evaluate.py`.
+>  Exact numbers are reproduced in [`outputs/reports/comparison_table.csv`](outputs/reports/comparison_table.csv) and [`metrics_report.json`](outputs/reports/metrics_report.json) every time you run `evaluate.py`.
 
 <div align="center">
 
@@ -305,12 +305,12 @@ The-Prediction-XI/
 
 ##  Contributors
 
-| | Name | GitHub |
-|---|---|---|
-|  | **Amar Mujačić** | [@AmarMujacic](https://github.com/AmarMujacic) |
-|  | **Omar Junuzović** | [@OmarJunuzovic](https://github.com/OmarJunuzovic) |
-|  | **Imran Škapur** | [@iskapur1-sketch](https://github.com/iskapur1-sketch) |
-|  | **Faris Maglajlija** | [@MaglajlijaF](https://github.com/MaglajlijaF) |
+| Name | GitHub |
+|---|---|
+| **Amar Mujačić** | [@AmarMujacic](https://github.com/AmarMujacic) |
+| **Omar Junuzović** | [@OmarJunuzovic](https://github.com/OmarJunuzovic) |
+| **Imran Škapur** | [@iskapur1-sketch](https://github.com/iskapur1-sketch) |
+| **Faris Maglajlija** | [@MaglajlijaF](https://github.com/MaglajlijaF) |
 
 <div align="center">
 
